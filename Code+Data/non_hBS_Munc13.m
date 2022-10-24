@@ -100,6 +100,12 @@ Treal = (mean(dsGrpA.PSC,'omitnan') / mean(dsGrpB.PSC,'omitnan')) / ...
 
 %% Try to visualize the structure: gscatter
 
+% PK wants to shift cells belonging to each batch:
+% Make a copy to do the shifting for plotting ONLY.
+ds2 = ds;
+shiftFactor = 0.15;
+ds2.Cell = ds2.Cell + ((ds2.Batch - 2) .* shiftFactor);
+
 nStrains = 2;   % S_1 = RIMs/ELKS, S_2 = RIMs/ELKS/Munc13
 nConds = 2;     % C_1 = KO, C_2 = control
 allGroups = {'Group A','Group B','Group C','Group D'};
@@ -110,6 +116,7 @@ for k = 1: nStrains
         
         % select experimental group:
         dsGrp = ds((ds.Strain == k) & (ds.Condition == m),:);
+        dsGrp2 = ds2((ds2.Strain == k) & (ds2.Condition == m),:);
         grpNum = (k - 1)*2 + m;
         
         % run 2-way ANOVA:
@@ -129,27 +136,23 @@ for k = 1: nStrains
             cStr = '^o';
         end
         tStr = [allGroups{grpNum} bStr cStr];
-
         
         subplot(2,2,grpNum);
         
         % For some reason, gscatter won't work using variables directly
         % from the table, so we need to break them out:
-        x = dsGrp.Cell;
-        % jitter x
-        jFactor = 0.4;
-        jX = x + ((rand(size(x)) .* jFactor) - jFactor/2);
-        y = dsGrp.PSC;
-        g = dsGrp.Batch;
+        x = dsGrp2.Cell;
+        y = dsGrp2.PSC;
+        g = dsGrp2.Batch;
         color = lines(6); % Generate color values
         % suppress legend:
         %h = gscatter(jX,y,g,color(4:6,:),'dsv',[],'off');
         % with legend:
-        h = gscatter(jX,y,g,color(4:6,:),'dsv');
+        h = gscatter(x,y,g,color(4:6,:),'dsv');
         for z = 1:3
             set(h(z),'LineWidth',1);
         end
-        legend('Batch 1','Batch 2','Batch 3');
+        legend('Culture 1','Culture 2','Culture 3');
         title(tStr);
         xlabel('Cell #');
         ylabel('PSC (pA)'); % guessing at units
