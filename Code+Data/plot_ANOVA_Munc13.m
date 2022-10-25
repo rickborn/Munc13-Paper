@@ -1,10 +1,27 @@
-% non_hBS_Munc13.m: non-hierarchical bootstrap of Kaeser lab data
+function [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
+
+% plot_ANOVA_Munc13.m: visualize ANOVA structure in data
 %
-% RTB wrote it, 08 October 2022, MKE post bike ride with Tosa Spokesmen
+% RTB wrote it, 25 October 2022, gray, drizzly morning
+% Originally part of the script, non_hBS_Munc13.m
 %
-% NOTE: This script has been superseded by 'hBS_Munc13_function.m' which
-% allows one to set a flag to do either the hierarchical or
-% non-hierarchical version of the bootstrap.
+% [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
+%
+% Inputs:
+% - fileName: name of a .xlsx file
+% - shiftFactor: how much to shift x-values for cells in a batch
+% - jitterFactor: how much to jitter x-values
+%
+% Outputs:
+% - T, a cell array containing the 4 ANOVA tables
+
+% To plot a nice looking ANOVA table from the cell array, T:
+% digits = [-1 -1 -1 -1 2 2 4];
+% maintitle = getString(message('stats:anovan:NWayANOVA'));
+% header = getString(message('stats:anovan:AnalysisOfVariance'));
+% footer = '';
+% % ANOVA Table for Group A
+% statdisptable(T(:,:,1),maintitle,header,footer,digits);
 
 % When the Kaeser lab knocks out two genes involved in synaptic
 % release (RIMs & ELKS), synaptic transmission is reduced by about 80%. Now
@@ -65,47 +82,16 @@
 
 %% Read the Excel file into a table
 
-%fileName ='fakedata1.xlsx';
-%fileName = 'dataset 1-sucrose IPSC-v4.xlsx';
-%fileName = 'dataset 2-sucrose E-v1.xlsx';
-%fileName = 'dataset 3- AP evoked IPSC.xlsx';
-fileName = 'dataset4- AP evoked EPSC.xlsx';
-%fileName = 'dataset4- AP evoked EPSC withNaNs.xlsx';
-%fileName = 'dataset 5-EPSC-PPR(50ms).xlsx';
-%fileName = 'dataset 6-IPSC-PPR(20ms).xlsx';
+if nargin < 1, fileName = 'dataset4- AP evoked EPSC.xlsx'; end
+if nargin < 2, shiftFactor = 0.2; end  
+if nargin < 3, jitterFactor = 0; end
+
 ds = readtable(fileName);
-
+T = cell(5,7,4);    % Cell array to hold the 4 ANOVA tables
 % Check the column names
-varNames = ds.Properties.VariableNames;
+%varNames = ds.Properties.VariableNames;
 
-%% Calculate the actual value of our test statistic, T
-
-dsGrpA = ds((ds.Strain == 1) & (ds.Condition == 1),:);  % double KO Cre
-dsGrpB = ds((ds.Strain == 1) & (ds.Condition == 2),:);  % double KO control
-dsGrpC = ds((ds.Strain == 2) & (ds.Condition == 1),:);  % triple KO Cre
-dsGrpD = ds((ds.Strain == 2) & (ds.Condition == 2),:);  % triple KO control
-
-Treal = (mean(dsGrpA.PSC,'omitnan') / mean(dsGrpB.PSC,'omitnan')) / ...
-        (mean(dsGrpC.PSC,'omitnan') / mean(dsGrpD.PSC,'omitnan'));
-    
-%% Use 2-way ANOVA to compare within vs. between group variances
-
-[pA,tblA,statsA] = anovan(dsGrpA.PSC,{dsGrpA.Batch,dsGrpA.Cell},...
-    'varnames',{'Batch','Cell'});
-
-[pB,tblB,statsB] = anovan(dsGrpB.PSC,{dsGrpB.Batch,dsGrpB.Cell},...
-    'varnames',{'Batch','Cell'});
-
-[pC,tblC,statsC] = anovan(dsGrpC.PSC,{dsGrpC.Batch,dsGrpC.Cell},...
-    'varnames',{'Batch','Cell'});
-
-[pD,tblD,statsD] = anovan(dsGrpD.PSC,{dsGrpD.Batch,dsGrpD.Cell},...
-    'varnames',{'Batch','Cell'});
-
-%% Try to visualize the structure: gscatter
-
-shiftFactor = 0.2;  % how much to shift cells from different batches in columns
-jitterFactor = 0.1; % how much to jitter x-values
+%% Visualize the structure: gscatter
 
 % PK wants to shift cells belonging to each batch:
 % The idea is to convert the batches [1,2,3] to [-1,0,1] and then multiply
@@ -132,6 +118,7 @@ for k = 1: nStrains
         % run 2-way ANOVA:
         [~,tbl,~] = anovan(dsGrp.PSC,{dsGrp.Batch,dsGrp.Cell},...
             'varnames',{'Batch','Cell'},'display','off');
+        T(:,:,grpNum) = tbl;
         
         % Use the title to indicate significance for batch and/or cell
         if tbl{2,7} < 0.05
@@ -156,11 +143,9 @@ for k = 1: nStrains
         g = dsGrp2.Batch;
         color = lines(6); % Generate color values
         
-        if jitterFactor > 0
-            jX = x + ((rand(size(x)) .* jitterFactor) - jitterFactor/2);
-        else
-            jX = x;
-        end
+        % jitter x data values for better visibility
+        jX = x + ((rand(size(x)) .* jitterFactor) - jitterFactor/2);
+        
         % suppress legend:
         %h = gscatter(jX,y,g,color(4:6,:),'dsv',[],'off');
         % with legend:
@@ -175,83 +160,3 @@ for k = 1: nStrains
         set(gca,'LineWidth',1,'FontSize',12,'TickDir','out');
     end
 end
-
-%% Non-Hierarchical bootstrap
-
-% For each group, we simply pool all of the data, resample and take the
-% mean.
-
-tic;
-% For nBoot = 100,000, run time of about 
-% For nBoot = 10,000 the run time was around 12 seconds
-% For nBoot = 1,000, run time is 1.5 seconds
-
-% define constants:
-nBoot = 10000;
-
-% variable to store the grand mean value of the EPSCs for each group (rows)
-% and each bootstrap iteration (columns):
-allMeans = zeros(nStrains*nConds, nBoot);
-
-for thisBoot = 1:nBoot
-    for thisStrain = 1: nStrains
-        for thisCond = 1:nConds
-            
-            % Grab the subset of the data corresponding to this group:
-            dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
-            
-            % resample with replacement from all recordings
-            nGrp = height(dsGrp);
-            dataStar = dsGrp.PSC(unidrnd(nGrp,nGrp,1));
-            
-            % Store mean of dataStar in allMeans
-            allMeans(((thisStrain - 1)*2) + thisCond, thisBoot) = mean(dataStar,'omitnan');
-            
-        end
-    end
-end
-
-
-% Calculate our test statistic, T, for each bootstrap iteration:
-Tboot = (allMeans(1,:) ./ allMeans(2,:)) ./ (allMeans(3,:) ./ allMeans(4,:));
-
-elapsedTimeInSeconds = toc;
-
-%% Calculate confidence intervals and a p-value
-
-% calculate 95% CI using percentile method:
-sortedTboot = sort(Tboot);
-[idxHi,idxLo] = cindx(0.05,nBoot);
-CIhi = sortedTboot(idxHi);
-CIlo = sortedTboot(idxLo);
-
-% calculate p-value:
-pValue = sum(Tboot <= 1) / nBoot;
-
-if pValue == 0
-    pValue = 1 / (nBoot + 1);
-end
-
-%% Plot a histogram of our bootstrap distribution
-
-figure
-histogram(Tboot);
-hold on
-
-% add a line for our experimental value
-ax = axis;
-h1 = line([Treal, Treal],[ax(3), ax(4)]);
-set(h1, 'Color', [0.6350, 0.0780, 0.1840],'LineWidth',2);
-
-% add dashed lines for confidence intervals
-h2 = line([CIhi, CIhi],[ax(3), ax(4)]);
-set(h2, 'Color', [0.6350, 0.0780, 0.1840],'LineStyle','--','LineWidth',1.5);
-h3 = line([CIlo, CIlo],[ax(3), ax(4)]);
-set(h3, 'Color', [0.6350, 0.0780, 0.1840],'LineStyle','--','LineWidth',1.5);
-
-% make it pretty
-xlabel('T^{*}');
-ylabel('Frequency');
-title([fileName '     p(H0|Data) = ' num2str(pValue,3)]);
-legend([h1,h2],{'Experimental value','95% CI'});
-set(gca,'FontSize',12);
