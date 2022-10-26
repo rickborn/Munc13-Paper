@@ -6,7 +6,7 @@ function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
 % [Treal, Tboot, allMeans, SE, CI, pVal] = 
 %       hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, pFlag)
 %
-% ex. [Treal, Tboot, allMeans, SE, CI, pVal] = hBS_Munc13_function('dataset 1-sucrose IPSC-v4.xlsx', 0, 10000,0.05, 1);
+% ex. [Tr,Tb,allMu,SE,CI,pH0] = hBS_Munc13_function('dataset4- AP evoked EPSC.xlsx', 1, 10000,0.05, 1);
 %
 % Inputs:
 % - fileName, name of an excel data file

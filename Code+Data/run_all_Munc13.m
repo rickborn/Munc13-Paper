@@ -1,6 +1,7 @@
 % run_all_Munc13.m: wrapper function to analyze multiple data sets
 %
-% RTB wrote it, 09 October 2022, while watching Packers v. Giants in London
+% RTB wrote it, 09 October 2022, while watching Packers v. Giants (played
+% in London)
 
 %% Specify analysis parameters
 
