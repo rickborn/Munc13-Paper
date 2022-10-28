@@ -83,27 +83,6 @@ function [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 % to examine structure in the data introduced by the nested nature of the
 % experiment.
 
-% ICC calculations inspired by:
-% "A solution to dependency: using multilevel analysis to accommodate nested
-% data" Emmeke Aarts, Matthijs Verhage, Jesse V Veenvliet, Conor V
-% Dolan & Sophie van der Sluis; Nat. Neurosci. 2014
-
-% Variance. Estimate of the variability in a data set. In nested data, the
-% total variance (VarT) is the sum of the variance within research objects
-% (VarW, variability among observations taken from the same cell) and the
-% variance between research objects (VarB, the variation in cell means).
-
-% Intracluster correlation (ICC). Index of the relative similarity of
-% observations taken from the same research object (for example, cell), and
-% an indicator of the amount of dependence in the data. The ICC is
-% calculated as VarB/[VarB + VarW]. Increasing the differences between
-% research objects (VarB) and/or decreasing the differences among measures
-% within a research object (VarW) increases the ICC. Experimental
-% manipulations (for example, genotype) can increase the variability
-% between objects (VarB) and thereby increase the ICC. The part of the ICC
-% that can be attributed to the experimental manipulation is called the
-% explained ICC. The remainder is called the unexplained ICC.
-
 %% Read the Excel file into a table
 
 if nargin < 1, fileName = 'dataset4- AP evoked EPSC.xlsx'; end
@@ -149,12 +128,12 @@ for k = 1: nStrains
         % cell within each of the 3 batches, then 1 ICC for batch.
         allBatches = unique(dsGrp.Batch);
         nBatches = length(allBatches);
+        ICC_batch = 0;
         ICC_cells = zeros(nBatches,1);
         
         % Note that for this calculation, we want to normalize the variance
         % by 'n', not 'n-1' (default), so we have to specify this when we
-        % call 'var' by setting the 2nd argument to '1'. But note also that
-        % normalizing by 'n-1' does not have a huge effect on ICC.
+        % call 'var' by setting the 2nd argument to '1'
         varNl = 1;
         
         % ICC for batches
@@ -175,18 +154,8 @@ for k = 1: nStrains
         % Now calculate the ICC of cells within each batch:
         for n = 1:nBatches
             dsBatch = dsGrp(dsGrp.Batch == n,:);
-            allCells = unique(dsBatch.Cell);
-            nCells = length(allCells);
-            varSum = 0;
-            grpMeans = zeros(nCells,1);
-            for c = 1:nCells
-                y = dsBatch.PSC(dsBatch.Cell == c);
-                varSum = varSum + var(y,varNl);
-                grpMeans(c) = mean(y);
-            end
-            varW = varSum / nCells;
-            varB = var(grpMeans,varNl);
-            ICC_cells(n) = varB / (varB + varW);
+            
+            
         end
         
         % Use the title to indicate significance for batch and/or cell
@@ -201,10 +170,7 @@ for k = 1: nStrains
         else
             cStr = '^o';
         end
-        tStr = [allGroups{grpNum} bStr cStr '  ICC_B:' num2str(ICC_batch,2) ...
-            ', ICC_{C1}:' num2str(ICC_cells(1),2) ...
-            ', ICC_{C2}:' num2str(ICC_cells(2),2) ...
-            ', ICC_{C3}:' num2str(ICC_cells(3),2)];
+        tStr = [allGroups{grpNum} bStr cStr];
         
         subplot(2,2,grpNum);
         
