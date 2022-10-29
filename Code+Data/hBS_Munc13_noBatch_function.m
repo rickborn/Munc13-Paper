@@ -1,16 +1,15 @@
 function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
-    hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, pFlag)
+    hBS_Munc13_noBatch_function(fileName, nBoot, myAlpha, pFlag)
 
-% hBS_Munc13_function.m: hierarchical bootstrap of Kaeser lab data
+% hBS_Munc13_noBatch_function.m: hBS of Kaeser lab data, omitting batch
 %
 % [Treal, Tboot, allMeans, SE, CI, pVal] = 
-%       hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, pFlag)
+%       hBS_Munc13_noBatch_function(fileName, nBoot, myAlpha, pFlag)
 %
-% ex. [Tr,Tb,allMu,SE,CI,pH0] = hBS_Munc13_function('dataset4- AP evoked EPSC.xlsx', 1, 10000,0.05, 1);
+% ex. [Tr,Tb,allMu,SE,CI,pH0] = hBS_Munc13_noBatch_function('dataset4- AP evoked EPSC.xlsx',10000,0.05,1);
 %
 % Inputs:
 % - fileName, name of an excel data file
-% - hFlag, 1 = hierarchical bootstrap (default); 0 = non-hierarchical bootstrap
 % - nBoot, # of bootstrap replicates (default = 1000)
 % - myAlpha, significance level for confidence intervals (default = 0.05)
 % - pFlag, 1 = display histogram (default = 0, no histogram)
@@ -87,10 +86,9 @@ function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
 
 %% Read the Excel file into a data table
 
-if nargin < 5, pFlag = 0; end
-if nargin < 4, myAlpha = 0.05; end
-if nargin < 3, nBoot = 1000; end
-if nargin < 2, hFlag = 1; end
+if nargin < 4, pFlag = 0; end
+if nargin < 3, myAlpha = 0.05; end
+if nargin < 2, nBoot = 1000; end
 
 if nargin < 1
     error('Error: A data file name must be provided.');
@@ -135,66 +133,52 @@ nConds = 2;     % C_1 = KO, C_2 = control
 % and each bootstrap iteration (columns):
 allMeans = zeros(nStrains*nConds, nBoot);
 
-for thisBoot = 1:nBoot
-    % Two strains: RIMS/ELKS-Cre and RIMS/ELKS/Munc13-Cre
-    for thisStrain = 1: nStrains
-        % Two conditions: Cre and control
-        for thisCond = 1:nConds
-            
-            % Temporary variable to hold the resampled EPSC values:
+for thisStrain = 1: nStrains
+    for thisCond = 1:nConds
+        
+        % Groups go from 1 to 4:
+        thisGrp = ((thisStrain - 1)*2) + thisCond;
+        
+        % Grab the subset of the data corresponding to this group:
+        dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
+        
+        % How many batches for this group?
+        nBatches = length(unique(dsGrp.Batch,'rows'));
+        
+        % Re-code to give each cell a unique #:
+        allCells = unique([dsGrp.Batch,dsGrp.Cell],'rows');
+        % Create a new column for the unique cell #:
+        dsGrp.UCell = zeros(height(dsGrp),1);
+        % Loop through allCells and assign unique cell #.
+        cellID = 1;
+        for k = 1:length(allCells)
+            dsGrp.UCell((dsGrp.Batch == allCells(k,1)) & (dsGrp.Cell == allCells(k,2))) = cellID;
+            cellID = cellID + 1;
+        end
+        
+        for thisBoot = 1:nBoot
+            % Temporary variable to hold the resampled PSC values:
             dataStar = [];
+                   
+            nCells = length(unique(dsGrp.UCell,'rows'));
+            cStarNdx = unidrnd(nCells, nCells, 1);
             
-            % Grab the subset of the data corresponding to this group:
-            dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
-            
-            % hFlag == 1, do the Hierarchical Bootstrap
-            if hFlag
+            for thisCell = 1:nCells
+                % dsCell contains all the measurements for one cell:
+                dsCell = dsGrp(dsGrp.UCell == cStarNdx(thisCell),:);
+                %nSweeps = length(unique(dsCell.PSC,'rows'));
+                nSweeps = height(dsCell);
                 
-                % How many batches of neurons for this group?
-                nBatches = length(unique(dsGrp.Batch,'rows'));
-                
-                % Re-sample with replacement from batches (Note that this
-                % assumes batches go from 1:nBatches with no gaps.)
-                bStarNdx = unidrnd(nBatches, nBatches, 1);
-                
-                for thisBatch = 1:nBatches
-                    % Grab the subset of the data corresponding to this batch:
-                    dsBatch = dsGrp(dsGrp.Batch == bStarNdx(thisBatch),:);
-                    
-                    % How many cells in this batch?
-                    nCells = length(unique(dsBatch.Cell,'rows'));
-                    
-                    % Re-sample with replacement from cells
-                    cStarNdx = unidrnd(nCells, nCells, 1);
-                    
-                    for thisCell = 1:nCells
-                        % dsCell contains all the measurements for one cell:
-                        dsCell = dsBatch(dsBatch.Cell == cStarNdx(thisCell),:);
-                        
-                        % How many technical replicates for this cell?
-                        nSweeps = height(dsCell);
-                        
-                        % For sucrose experiments, there is only one value per
-                        % cell
-                        if nSweeps == 1
-                            dataStar = [dataStar; dsCell.PSC];
-                        else
-                            % Re-sample with replacement from replicates
-                            swStarNdx = unidrnd(nSweeps, nSweeps, 1);
-                            dataStar = [dataStar; dsCell.PSC(swStarNdx)];
-                        end
-                    end
+                if nSweeps == 1
+                    dataStar = [dataStar; dsCell.PSC];
+                else
+                    swStarNdx = unidrnd(nSweeps, nSweeps, 1);
+                    dataStar = [dataStar; dsCell.PSC(swStarNdx)];
                 end
-            
-            % Non-hierarchical bootstrap
-            else
-                % resample with replacement from all recordings
-                nGrp = height(dsGrp);
-                dataStar = dsGrp.PSC(unidrnd(nGrp,nGrp,1));
             end
             
             % Store mean of dataStar in allMeans
-            allMeans(((thisStrain - 1)*2) + thisCond, thisBoot) = mean(dataStar,'omitnan');
+            allMeans(thisGrp,thisBoot) = mean(dataStar,'omitnan');
             
         end
     end
@@ -204,7 +188,11 @@ end
 Tboot = (allMeans(1,:) ./ allMeans(2,:)) ./ (allMeans(3,:) ./ allMeans(4,:));
 
 elapsedTimeInSeconds = toc;
-disp(['Run time was ' num2str((elapsedTimeInSeconds/60),2) ' min.']);
+s = seconds(elapsedTimeInSeconds);
+s.Format = 'hh:mm:ss';
+
+disp(['Run time was ' char(s) ' (hh:mm:ss) for '...
+    num2str(nBoot) ' bootstrap iterations.']);
 
 %% Calculate standard error, confidence intervals and a p-value
 
@@ -229,12 +217,8 @@ end
 %% Plot a histogram of our bootstrap distribution
 
 if pFlag
+    figure('Name','Hierarchical Bootstrap');
     
-    if hFlag
-        figure('Name','Hierarchical Bootstrap');
-    else
-        figure('Name','Non-hierarchical Booststrap');
-    end
     %histogram(Tboot);
     hist(Tboot,50);
     hold on

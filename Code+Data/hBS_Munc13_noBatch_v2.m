@@ -1,6 +1,13 @@
-% hBS_Munc13.m: hierarchical bootstrap of Kaeser lab data
+% hBS_Munc13_noBatch_v2.m: hBS of Kaeser lab data, omitting batch
 %
 % RTB wrote it, 29 September 2022, plane ride to MKE, mom's hip surgery
+% RTB wrote it, 29 October 2022, after walk at Millenium with Anne & Nena
+% Adapted from hBS_Munc13_v2.m
+%
+% In this version, we'll pool all of the cells from a given batch and
+% resample from cells and sweeps only. The motivation for this is:
+%   1. Resampling from n = 3 batches is probably not legit
+%   2. The ICC for batches tends to be low.
 
 % When the Kaeser lab knocks out two genes involved in synaptic
 % release (RIMs & ELKS), synaptic transmission is reduced by about 80%. Now
@@ -68,54 +75,6 @@ ds = readtable(fileName);
 % Check the column names
 varNames = ds.Properties.VariableNames;
 
-%% Data sanity check: distribution of the least significant digits
-
-% see: https://en.wikipedia.org/wiki/Benford%27s_law
-
-% Make a histogram of the frequency of each of the last digits.
-
-% Note, the "to string and back" method won't ever include a '0' last digit.
-% nTotal = height(ds);
-% lastDigits = zeros(nTotal,1);
-% for k = 1:nTotal
-%     tStr = num2str(ds.PSC(k),8);
-%     lastDigits(k) = str2double(tStr(end));
-% end
-
-% If all values are stored to the same precision, then we can use the
-% "multiply and mod" method. For example, if every value is recorded to the
-% nearest 100th of a unit, then we can use:
-% lastDigits = mod(round(ds.PSC .* 100), 10);
-%
-% For Chao Tan's data, it looks like values are stored to at least 4
-% decimal places
-lastDigits = mod(round(ds.PSC .* 10000), 10);
-
-figure;
-% observed counts per bin:
-O = histcounts(lastDigits,[-0.5:1:9.5]);
-bar(0:9,O);
-xlabel('Last digit of PSC');
-ylabel('Frequency');
-
-% prediction for uniformity:
-nTotal = height(ds);
-nPerBinUni = nTotal / 10;
-ax = axis;
-axis([-1,10,ax(3),ax(4)]);
-h = line([-1,10],[nPerBinUni,nPerBinUni],'Color','r');
-
-% Chi-squared test for uniformity.
-E = repmat(nPerBinUni,size(O));
-chi2 = sum(((E-O).^2) ./ E);
-df = length(E) - 1;
-pChi2 = 1 - chi2cdf(chi2,df);
-
-tStr = sprintf('\\chi^2(%d)=%.2f, p=%.3e',df,chi2,pChi2);
-title(tStr);
-% text(1,200,tStr);
-%text(1,200,['p-value: ' num2str(pChi2)]);
-
 %% Calculate the actual value of our test statistic, T
 
 dsGrpA = ds((ds.Strain == 1) & (ds.Condition == 1),:);  % double KO Cre
@@ -137,13 +96,14 @@ Treal = (mean(dsGrpA.PSC,'omitnan') / mean(dsGrpB.PSC,'omitnan')) / ...
 % be avoided with more thought), so this might be kinda slow. Let's time it
 % for different values of nBoot
 tic;
-% For nBoot = 100,000, run time of about 45 min.
-% For nBoot = 10,000 the run time was around 353 seconds (almost 6 minutes)
-% For nBoot = 1,000, run time is 28 seconds
-% For nBoot = 100, run time is about 3 seconds
+
+% For nBoot = 100,000, run time 
+% For nBoot = 10,000 the run time was around 3.5 min.
+% For nBoot = 1,000, run time is 22 seconds
+% For nBoot = 100, run time is about 2 seconds
 
 % define constants:
-nBoot = 10;
+nBoot = 10000;
 nStrains = 2;   % S_1 = RIMs/ELKS, S_2 = RIMs/ELKS/Munc13
 nConds = 2;     % C_1 = KO, C_2 = control
 
@@ -151,55 +111,66 @@ nConds = 2;     % C_1 = KO, C_2 = control
 % and each bootstrap iteration (columns):
 allMeans = zeros(nStrains*nConds, nBoot);
 
-for thisBoot = 1:nBoot
-    for thisStrain = 1: nStrains
-        for thisCond = 1:nConds
-            
-            % Temporary variable to hold the resampled EPSC values:
+for thisStrain = 1: nStrains
+    for thisCond = 1:nConds
+        
+        % Groups go from 1 to 4:
+        thisGrp = ((thisStrain - 1)*2) + thisCond;
+        
+        % Grab the subset of the data corresponding to this group:
+        dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
+        
+        % How many batches for this group?
+        nBatches = length(unique(dsGrp.Batch,'rows'));
+        
+        % Re-code to give each cell a unique #:
+        allCells = unique([dsGrp.Batch,dsGrp.Cell],'rows');
+        % Create a new column for the unique cell #:
+        dsGrp.UCell = zeros(height(dsGrp),1);
+        % Loop through allCells and assign unique cell #.
+        cellID = 1;
+        for k = 1:length(allCells)
+            dsGrp.UCell((dsGrp.Batch == allCells(k,1)) & (dsGrp.Cell == allCells(k,2))) = cellID;
+            cellID = cellID + 1;
+        end
+        
+        for thisBoot = 1:nBoot
+            % Temporary variable to hold the resampled PSC values:
             dataStar = [];
+                   
+            nCells = length(unique(dsGrp.UCell,'rows'));
+            cStarNdx = unidrnd(nCells, nCells, 1);
             
-            % Grab the subset of the data corresponding to this group:
-            dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
-            
-            % How many batches for this group?
-            nBatches = length(unique(dsGrp.Batch,'rows'));
-            
-            % re-sample with replacement from batches (Note that this
-            % assumes batches go from 1:nBatches with no gaps.)
-            bStarNdx = unidrnd(nBatches, nBatches, 1);
-            
-            for thisBatch = 1:nBatches
-                dsBatch = dsGrp(dsGrp.Batch == bStarNdx(thisBatch),:);
-                nCells = length(unique(dsBatch.Cell,'rows'));
-                cStarNdx = unidrnd(nCells, nCells, 1);
+            for thisCell = 1:nCells
+                % dsCell contains all the measurements for one cell:
+                dsCell = dsGrp(dsGrp.UCell == cStarNdx(thisCell),:);
+                %nSweeps = length(unique(dsCell.PSC,'rows'));
+                nSweeps = height(dsCell);
                 
-                for thisCell = 1:nCells
-                    % dsCell contains all the measurements for one cell:
-                    dsCell = dsBatch(dsBatch.Cell == cStarNdx(thisCell),:);
-                    %nSweeps = length(unique(dsCell.PSC,'rows'));
-                    nSweeps = height(dsCell);
-                    
-                    if nSweeps == 1
-                        dataStar = [dataStar; dsCell.PSC];
-                    else
-                        swStarNdx = unidrnd(nSweeps, nSweeps, 1);
-                        dataStar = [dataStar; dsCell.PSC(swStarNdx)];
-                    end
+                if nSweeps == 1
+                    dataStar = [dataStar; dsCell.PSC];
+                else
+                    swStarNdx = unidrnd(nSweeps, nSweeps, 1);
+                    dataStar = [dataStar; dsCell.PSC(swStarNdx)];
                 end
             end
             
             % Store mean of dataStar in allMeans
-            allMeans(((thisStrain - 1)*2) + thisCond, thisBoot) = mean(dataStar,'omitnan');
+            allMeans(thisGrp,thisBoot) = mean(dataStar,'omitnan');
             
         end
     end
 end
 
-
 % Calculate our test statistic, T, for each bootstrap iteration:
 Tboot = (allMeans(1,:) ./ allMeans(2,:)) ./ (allMeans(3,:) ./ allMeans(4,:));
 
 elapsedTimeInSeconds = toc;
+s = seconds(elapsedTimeInSeconds);
+s.Format = 'hh:mm:ss';
+
+disp(['Run time was ' char(s) ' (hh:mm:ss) for '...
+    num2str(nBoot) ' bootstrap iterations.']);
 
 %% Calculate confidence intervals and a p-value
 
@@ -237,7 +208,7 @@ set(h3, 'Color', [0.4660, 0.6740, 0.1880],'LineStyle','--','LineWidth',1.5);
 % make it pretty
 xlabel('T^{*}');
 ylabel('Frequency');
-%title([fileName '     p(H0|Data) = ' num2str(pValue,3)]);
+title([fileName '     p(H0|Data) = ' num2str(pValue,3)]);
 legend([h1,h2],{'Experimental value','95% CI'});
 set(gca,'FontSize',12);
 

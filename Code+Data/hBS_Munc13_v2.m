@@ -1,6 +1,8 @@
-% hBS_Munc13.m: hierarchical bootstrap of Kaeser lab data
+% hBS_Munc13_v2.m: hierarchical bootstrap of Kaeser lab data
 %
 % RTB wrote it, 29 September 2022, plane ride to MKE, mom's hip surgery
+% In version 2, we put the bootstrap loop inside the experimental group
+% loops. This should execute much faster.
 
 % When the Kaeser lab knocks out two genes involved in synaptic
 % release (RIMs & ELKS), synaptic transmission is reduced by about 80%. Now
@@ -143,7 +145,7 @@ tic;
 % For nBoot = 100, run time is about 3 seconds
 
 % define constants:
-nBoot = 10;
+nBoot = 1000;
 nStrains = 2;   % S_1 = RIMs/ELKS, S_2 = RIMs/ELKS/Munc13
 nConds = 2;     % C_1 = KO, C_2 = control
 
@@ -151,18 +153,21 @@ nConds = 2;     % C_1 = KO, C_2 = control
 % and each bootstrap iteration (columns):
 allMeans = zeros(nStrains*nConds, nBoot);
 
-for thisBoot = 1:nBoot
-    for thisStrain = 1: nStrains
-        for thisCond = 1:nConds
-            
+for thisStrain = 1: nStrains
+    for thisCond = 1:nConds
+        
+        % Groups go from 1 to 4:
+        thisGrp = ((thisStrain - 1)*2) + thisCond;
+        
+        % Grab the subset of the data corresponding to this group:
+        dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
+        
+        % How many batches for this group?
+        nBatches = length(unique(dsGrp.Batch,'rows'));
+        
+        for thisBoot = 1:nBoot
             % Temporary variable to hold the resampled EPSC values:
             dataStar = [];
-            
-            % Grab the subset of the data corresponding to this group:
-            dsGrp = ds((ds.Strain == thisStrain) & (ds.Condition == thisCond),:);
-            
-            % How many batches for this group?
-            nBatches = length(unique(dsGrp.Batch,'rows'));
             
             % re-sample with replacement from batches (Note that this
             % assumes batches go from 1:nBatches with no gaps.)
@@ -189,17 +194,18 @@ for thisBoot = 1:nBoot
             end
             
             % Store mean of dataStar in allMeans
-            allMeans(((thisStrain - 1)*2) + thisCond, thisBoot) = mean(dataStar,'omitnan');
+            allMeans(thisGrp,thisBoot) = mean(dataStar,'omitnan');
             
         end
     end
 end
 
-
 % Calculate our test statistic, T, for each bootstrap iteration:
 Tboot = (allMeans(1,:) ./ allMeans(2,:)) ./ (allMeans(3,:) ./ allMeans(4,:));
 
 elapsedTimeInSeconds = toc;
+disp(['Run time was ' num2str((elapsedTimeInSeconds/60),2) ' min. for '...
+    num2str(nBoot) ' bootstrap iterations.']);
 
 %% Calculate confidence intervals and a p-value
 
@@ -237,7 +243,7 @@ set(h3, 'Color', [0.4660, 0.6740, 0.1880],'LineStyle','--','LineWidth',1.5);
 % make it pretty
 xlabel('T^{*}');
 ylabel('Frequency');
-%title([fileName '     p(H0|Data) = ' num2str(pValue,3)]);
+title([fileName '     p(H0|Data) = ' num2str(pValue,3)]);
 legend([h1,h2],{'Experimental value','95% CI'});
 set(gca,'FontSize',12);
 

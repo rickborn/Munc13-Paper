@@ -1,6 +1,12 @@
-% hBS_Munc13.m: hierarchical bootstrap of Kaeser lab data
+% hBS_Munc13_noBatch.m: hBS of Kaeser lab data, omitting batch
 %
-% RTB wrote it, 29 September 2022, plane ride to MKE, mom's hip surgery
+% RTB wrote it, 29 October 2022, after walk at Millenium with Anne & Nena
+% Adapted from hBS_Munc13.m
+%
+% In this version, we'll pool all of the cells from a given batch and
+% resample from cells and sweeps only. The motivation for this is:
+%   1. Resampling from n = 3 batches is probably not legit
+%   2. The ICC for batches tends to be low.
 
 % When the Kaeser lab knocks out two genes involved in synaptic
 % release (RIMs & ELKS), synaptic transmission is reduced by about 80%. Now
@@ -68,54 +74,6 @@ ds = readtable(fileName);
 % Check the column names
 varNames = ds.Properties.VariableNames;
 
-%% Data sanity check: distribution of the least significant digits
-
-% see: https://en.wikipedia.org/wiki/Benford%27s_law
-
-% Make a histogram of the frequency of each of the last digits.
-
-% Note, the "to string and back" method won't ever include a '0' last digit.
-% nTotal = height(ds);
-% lastDigits = zeros(nTotal,1);
-% for k = 1:nTotal
-%     tStr = num2str(ds.PSC(k),8);
-%     lastDigits(k) = str2double(tStr(end));
-% end
-
-% If all values are stored to the same precision, then we can use the
-% "multiply and mod" method. For example, if every value is recorded to the
-% nearest 100th of a unit, then we can use:
-% lastDigits = mod(round(ds.PSC .* 100), 10);
-%
-% For Chao Tan's data, it looks like values are stored to at least 4
-% decimal places
-lastDigits = mod(round(ds.PSC .* 10000), 10);
-
-figure;
-% observed counts per bin:
-O = histcounts(lastDigits,[-0.5:1:9.5]);
-bar(0:9,O);
-xlabel('Last digit of PSC');
-ylabel('Frequency');
-
-% prediction for uniformity:
-nTotal = height(ds);
-nPerBinUni = nTotal / 10;
-ax = axis;
-axis([-1,10,ax(3),ax(4)]);
-h = line([-1,10],[nPerBinUni,nPerBinUni],'Color','r');
-
-% Chi-squared test for uniformity.
-E = repmat(nPerBinUni,size(O));
-chi2 = sum(((E-O).^2) ./ E);
-df = length(E) - 1;
-pChi2 = 1 - chi2cdf(chi2,df);
-
-tStr = sprintf('\\chi^2(%d)=%.2f, p=%.3e',df,chi2,pChi2);
-title(tStr);
-% text(1,200,tStr);
-%text(1,200,['p-value: ' num2str(pChi2)]);
-
 %% Calculate the actual value of our test statistic, T
 
 dsGrpA = ds((ds.Strain == 1) & (ds.Condition == 1),:);  % double KO Cre
@@ -125,6 +83,26 @@ dsGrpD = ds((ds.Strain == 2) & (ds.Condition == 2),:);  % triple KO control
 
 Treal = (mean(dsGrpA.PSC,'omitnan') / mean(dsGrpB.PSC,'omitnan')) / ...
         (mean(dsGrpC.PSC,'omitnan') / mean(dsGrpD.PSC,'omitnan'));
+
+%% Re-code cells
+
+% Idea is to give each cell within a given experimental condition a unique
+% cell #. Each cell's ID is thus defined by two numbers: batch and cell.
+allCells = unique([dsGrp.Batch,dsGrp.Cell],'rows');
+
+% Create a new column for the unique cell #:
+dsGrp.UCell = zeros(height(dsGrp),1);
+
+% Loop through allCells and assign unique cell #.
+cellID = 1;
+for k = 1:length(allCells)
+    dsGrp.UCell((dsGrp.Batch == allCells(k,1)) & (dsGrp.Cell == allCells(k,2))) = cellID;
+    cellID = cellID + 1;
+end
+
+% Note: Doing it like this will create gaps in unique cell #, because
+% different batches can have different #s of cells. Can solve this by doing
+% the recoding withing experimental group.
 
 %% Hierarchical bootstrap
 
