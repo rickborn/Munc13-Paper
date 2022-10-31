@@ -1,10 +1,10 @@
-function [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
+function [T,ICC] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 
 % plot_ANOVA_Munc13.m: visualize ANOVA structure in data
 %
-% [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
+% [T,ICC] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 %
-% ex. T = plot_ANOVA_Munc13('dataset4- AP evoked EPSC.xlsx',0.2,0);
+% ex. [T,ICC] = plot_ANOVA_Munc13('dataset4- AP evoked EPSC.xlsx',0.2,0.1);
 %
 % Inputs:
 % - fileName: name of a .xlsx file
@@ -13,6 +13,7 @@ function [T] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 %
 % Outputs:
 % - T, a cell array containing the 4 ANOVA tables
+% - ICC, an array containing intra-cluster correlations
 %
 % RTB wrote it, 25 October 2022, gray, drizzly morning
 % Originally part of the script, non_hBS_Munc13.m
@@ -112,6 +113,7 @@ if nargin < 3, jitterFactor = 0; end
 
 ds = readtable(fileName);
 T = cell(5,7,4);    % Cell array to hold the 4 ANOVA tables
+ICC = zeros(4,4);   % Array to hold the 16 ICC values
 % Check the column names
 %varNames = ds.Properties.VariableNames;
 
@@ -188,6 +190,10 @@ for k = 1: nStrains
             varB = var(grpMeans,varNl);
             ICC_cells(n) = varB / (varB + varW);
         end
+        
+        % Assign ICC values to the ICC array for return:
+        ICC(grpNum,1) = ICC_batch;
+        ICC(grpNum,2:end) = ICC_cells;
         
         % Use the title to indicate significance for batch and/or cell
         if tbl{2,7} < 0.05
