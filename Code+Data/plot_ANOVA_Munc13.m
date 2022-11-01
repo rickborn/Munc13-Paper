@@ -87,7 +87,9 @@ function [T,ICC] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 % ICC calculations inspired by:
 % "A solution to dependency: using multilevel analysis to accommodate nested
 % data" Emmeke Aarts, Matthijs Verhage, Jesse V Veenvliet, Conor V
-% Dolan & Sophie van der Sluis; Nat. Neurosci. 2014
+% Dolan & Sophie van der Sluis; Nat. Neurosci. 2014, 17(4):491-496.
+%
+% PDF: aarts-etal-hierarchical_nested_data_statistics-nn2014.pdf
 
 % Variance. Estimate of the variability in a data set. In nested data, the
 % total variance (VarT) is the sum of the variance within research objects
