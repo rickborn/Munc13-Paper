@@ -7,7 +7,7 @@
 
 nBoot = 10000;
 myAlpha = 0.05;
-linkFlag = true;
+linkFlag = TRUE;
 
 %% Set up storage
 
@@ -38,16 +38,15 @@ for k = 1:nRows
     [Tr,Tb,allMu,SE,CI,p] = hBS_Munc13_function(thisFileName,hFlag,nBoot,myAlpha,linkFlag,0);
     
     % NOTE: If we save T_boot for each analysis, we can reproduce the
-    % histograms at our leisure.
+    % histograms at our leisure. Consider doing this.
     [pathstr, fileName, fileExt] = fileparts(thisFileName);
     BS_fName = [fileName,'_hFlag_',num2str(hFlag),'_linkFlag_',num2str(linkFlag),...
         '_nBoot_',num2str(nBoot),'.mat'];
-    save(BS_fName,'Tb','Tr','allMu');
+    save(BS_fName,'Tb','allMu');
     
     % Assign values to table
     T.file_name(k) = thisFileName;
     T.h_Flag(k) = hFlag;    % 1 = hierarchical bootstrap
-    T.l_Flag(k) = linkFlag; % 1 = link batches across conditions
     T.T_real(k) = Tr;       % experimental value of test statistic, T
     T.SE(k) = SE;           % standard error of T
     T.pVal(k) = p;          % p(H0|data)
@@ -57,9 +56,9 @@ end
 
 %% Save the results table
 
-resultFileName = ['results_nBoot_' num2str(nBoot) '_linkFlag_' num2str(linkFlag) '.mat'];
+resultFileName = ['results_nBoot_' num2str(nBoot) '.mat'];
 save(resultFileName, 'T');
 
 % Also write to an excel spreadsheet
-excelFileName = ['results_nBoot_' num2str(nBoot) '_linkFlag_' num2str(linkFlag) '.xlsx'];
+excelFileName = ['results_nBoot_' num2str(nBoot) '.xlsx'];
 writetable(T,excelFileName);

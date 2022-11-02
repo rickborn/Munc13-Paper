@@ -1,19 +1,18 @@
 function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
-    hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, linkFlag, pFlag)
+    hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, pFlag)
 
 % hBS_Munc13_function.m: hierarchical bootstrap of Kaeser lab data
 %
 % [Treal, Tboot, allMeans, SE, CI, pVal] = 
-%       hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, linkFlag, pFlag)
+%       hBS_Munc13_function(fileName, hFlag, nBoot, myAlpha, pFlag)
 %
-% ex. [Tr,Tb,allMu,SE,CI,pH0] = hBS_Munc13_function('dataset4- AP evoked EPSC.xlsx',1,10000,0.05,0,1);
+% ex. [Tr,Tb,allMu,SE,CI,pH0] = hBS_Munc13_function('dataset4- AP evoked EPSC.xlsx', 1, 10000,0.05, 1);
 %
 % Inputs:
 % - fileName, name of an excel data file
 % - hFlag, 1 = hierarchical bootstrap (default); 0 = non-hierarchical bootstrap
 % - nBoot, # of bootstrap replicates (default = 1000)
 % - myAlpha, significance level for confidence intervals (default = 0.05)
-% - linkFlag, 1 = use same batches for KO & control
 % - pFlag, 1 = display histogram (default = 0, no histogram)
 %
 % Outputs:
@@ -26,8 +25,6 @@ function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
 % 29 September 2022, RTB wrote it; plane ride to MKE, mom's hip surgery
 % 08 October 2022, converted to function & added option for
 %    non-hierarchical bootstrap
-% 01 November 2022, added 'linkFlag' option to link batches across
-% conditions (per suggestion from Chao Tan)
 
 % When the Kaeser lab knocks out two genes involved in synaptic
 % release (RIMs & ELKS), synaptic transmission is reduced by about 80%. Now
@@ -90,8 +87,7 @@ function [Treal, Tboot, allMeans, SE, CI, pValue] = ...
 
 %% Read the Excel file into a data table
 
-if nargin < 6, pFlag = 0; end
-if nargin < 5, linkFlag = 0; end
+if nargin < 5, pFlag = 0; end
 if nargin < 4, myAlpha = 0.05; end
 if nargin < 3, nBoot = 1000; end
 if nargin < 2, hFlag = 1; end
@@ -159,18 +155,12 @@ for thisBoot = 1:nBoot
                 
                 % Re-sample with replacement from batches (Note that this
                 % assumes batches go from 1:nBatches with no gaps.)
-                % New wrinkle (11/01/22): If linkFlag == 1, we will use the
-                % same bootstrap sample of batches for both conditions.
+                % New wrin
                 if thisCond == 1
                     bStarNdx = unidrnd(nBatches, nBatches, 1);
                 elseif linkFlag == 0 && thisCond == 2
                     bStarNdx = unidrnd(nBatches, nBatches, 1);
                 end
-                
-                % Code to test if the linkFlag option is performing as
-                % expected: (It is!)
-%                 disp(['Strain: ' num2str(thisStrain), ' Condition: ' num2str(thisCond),...
-%                     '  Batches: ' num2str(bStarNdx')]);
                 
                 for thisBatch = 1:nBatches
                     % Grab the subset of the data corresponding to this batch:
@@ -219,11 +209,7 @@ end
 Tboot = (allMeans(1,:) ./ allMeans(2,:)) ./ (allMeans(3,:) ./ allMeans(4,:));
 
 elapsedTimeInSeconds = toc;
-s = seconds(elapsedTimeInSeconds);
-s.Format = 'hh:mm:ss';
-
-disp(['Run time was ' char(s) ' (hh:mm:ss) for '...
-    num2str(nBoot) ' bootstrap iterations.']);
+disp(['Run time was ' num2str((elapsedTimeInSeconds/60),2) ' min.']);
 
 %% Calculate standard error, confidence intervals and a p-value
 
