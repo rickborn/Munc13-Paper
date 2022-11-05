@@ -5,7 +5,7 @@
 
 %% Specify analysis parameters
 
-nBoot = 10000;
+nBoot = 100000;
 myAlpha = 0.05;
 linkFlag = true;
 
