@@ -78,11 +78,11 @@ function [T,ICC] = plot_ANOVA_Munc13(fileName,shiftFactor,jitterFactor)
 % The null value for this statistic is 1; our alternate hypothesis is:
 %       T > 1
 
-% In this script, we'll explore whether doing the bootstrap hierarchically
-% matters by running it non-hierarchically and comparing with the results
-% of the hierarchical bootstrap. We'll also do some additional statistics
-% to examine structure in the data introduced by the nested nature of the
-% experiment.
+% In this function, we'll do some statistics to examine structure in the
+% data introduced by the hierarchical, nested nature of the experiment. We
+% start with a very basic 2-way ANOVA, then proceed to measure the
+% 'intra-cluster correlation' values, which are obviously related to the
+% ANOVA F-statistic.
 
 % ICC calculations inspired by:
 % "A solution to dependency: using multilevel analysis to accommodate nested
